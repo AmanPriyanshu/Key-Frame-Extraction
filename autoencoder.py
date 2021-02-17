@@ -19,7 +19,6 @@ class ImageDataset(torch.utils.data.Dataset):
 		img = cv2.imread(self.files[idx])
 		img = cv2.resize(img, (16*20, 9*20))
 		img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-		img = img/255.0
 		img = Image.fromarray(img.astype(np.uint8))
 
 		if self.transform:
@@ -32,13 +31,10 @@ class AutoEncoder(torch.nn.Module):
 		super(AutoEncoder, self).__init__()
 		# feature encoder
 		self.features_conv = torch.nn.Sequential(
-			torch.nn.BatchNorm2d(3),
 			torch.nn.Conv2d(3, 4, kernel_size=3, stride=2),
 			torch.nn.ReLU(),
-			torch.nn.BatchNorm2d(4),
 			torch.nn.Conv2d(4, 6, kernel_size=3, stride=2),
 			torch.nn.ReLU(),
-			torch.nn.BatchNorm2d(6),
 			torch.nn.Conv2d(6, 8, kernel_size=3),
 			torch.nn.ReLU(),
 			)
@@ -46,10 +42,8 @@ class AutoEncoder(torch.nn.Module):
 		self.features_deconv = torch.nn.Sequential(
 			torch.nn.ConvTranspose2d(8, 6, 4, stride=2),
 			torch.nn.ReLU(),
-			torch.nn.BatchNorm2d(6),
 			torch.nn.ConvTranspose2d(6, 4, 4, stride=2),
 			torch.nn.ReLU(),
-			torch.nn.BatchNorm2d(4),
 			torch.nn.ConvTranspose2d(4, 3, 9),
 			torch.nn.ReLU(),
 			)
@@ -71,24 +65,22 @@ def train():
 	model = model.to(device)
 	imageDataset = ImageDataset()
 	imageLoader = torch.utils.data.DataLoader(imageDataset, batch_size=4, shuffle=True)
-	criterion = torch.nn.MSELoss()
 	optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
-	for epoch in range(3):
+	for epoch in range(1):
 		progression = tqdm(imageLoader, total=len(imageLoader))
 		running_loss = []
 		for images in progression:
 			images = images.to(device)
-			images = model(images)
 			optimizer.zero_grad()
 			outputs = model(images)
-			loss = criterion(outputs, images)
+			loss = torch.mean(torch.square(outputs - images))
 			loss.backward()
 			optimizer.step()
 			running_loss.append(loss.item())
 			progression.set_description(str({'epoch':epoch+1, 'loss': round(sum(running_loss)/len(running_loss), 4), 'pixel_error': int(255*round(sum(running_loss)/len(running_loss), 4))}))
 		progression.close()
-		torch.save(model.state_dict(), './models/autoencoder/epoch_'+str(epoch+1)+'.pt')
+		torch.save(model, './models/autoencoder/epoch_'+str(epoch+1)+'.pt')
 
 if __name__ == '__main__':
 	path = './dataset/images/'
